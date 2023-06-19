@@ -18,13 +18,29 @@ provider "aws" {
   profile = "default"
 }
 
-# Create our S3 bucket (Datalake)
+# Create S3 bucket
 resource "aws_s3_bucket" "sde-data-lake" {
   bucket_prefix = var.bucket_prefix
   force_destroy = true
 }
 
+resource "aws_s3_bucket_ownership_controls" "sde-data-lake-ownership" {
+  bucket = aws_s3_bucket.sde-data-lake.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "sde-data-lake-public-access" {
+  bucket = aws_s3_bucket.sde-data-lake.id
+  block_public_acls       = false
+  block_public_policy     = false
+  ignore_public_acls      = false
+  restrict_public_buckets = false
+}
+
 resource "aws_s3_bucket_acl" "sde-data-lake-acl" {
+  depends_on = [aws_s3_bucket_ownership_controls.sde-data-lake-ownership,aws_s3_bucket_public_access_block.sde-data-lake-public-access,]
   bucket = aws_s3_bucket.sde-data-lake.id
   acl    = "public-read-write"
 }
@@ -245,7 +261,7 @@ sudo chmod 666 /var/run/docker.sock
 sudo apt install make
 
 echo 'Clone git repo to EC2'
-cd /home/ubuntu && git clone https://github.com/josephmachado/beginner_de_project.git && cd beginner_de_project && make perms
+cd /home/ubuntu && git clone https://github.com/danialsukri/beginner_de_project.git && cd beginner_de_project && make perms
 
 echo 'Setup Airflow environment variables'
 echo "
@@ -263,12 +279,4 @@ echo "-------------------------END AIRFLOW SETUP---------------------------"
 
 EOF
 
-}
-
-# Setting as budget monitor, so we don't go over 10 USD per month
-resource "aws_budgets_budget" "cost" {
-  budget_type  = "COST"
-  limit_amount = "10"
-  limit_unit   = "USD"
-  time_unit    = "MONTHLY"
 }
